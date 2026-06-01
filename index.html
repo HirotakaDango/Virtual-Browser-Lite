@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chrome Virtual Browser</title>
+    <style>
+      :root {
+        --bg-tab-bar: #dee1e6;
+        --bg-toolbar: #ffffff;
+        --bg-input: #f1f3f4;
+        --text-main: #202124;
+        --text-tab: #3c4043;
+        --border-color: #dadce0;
+        --hover-bg: rgba(0, 0, 0, 0.06);
+        --active-hover-bg: rgba(0, 0, 0, 0.1);
+        --icon-color: #5f6368;
+        --focus-border: #ffffff;
+        --focus-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        --tab-separator: #aeb0b4;
+        --menu-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        --bg-modal: rgba(0, 0, 0, 0.5);
+      }
+      body.dark-mode {
+        --bg-tab-bar: #202124;
+        --bg-toolbar: #35363a;
+        --bg-input: #202124;
+        --text-main: #e8eaed;
+        --text-tab: #9aa0a6;
+        --border-color: #5f6368;
+        --hover-bg: rgba(255, 255, 255, 0.1);
+        --active-hover-bg: rgba(255, 255, 255, 0.15);
+        --icon-color: #9aa0a6;
+        --focus-border: #35363a;
+        --focus-shadow: 0 1px 4px rgba(0,0,0,0.5);
+        --tab-separator: #4a4d51;
+        --menu-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        --bg-modal: rgba(0, 0, 0, 0.7);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: var(--bg-tab-bar);
+        color: var(--text-main);
+        overflow: hidden;
+      }
+      .vh-100 {
+        height: 100vh !important;
+        max-height: 100vh !important;
+      }
+      .browser-app {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        overflow: hidden;
+      }
+      .title-bar {
+        display: flex;
+        align-items: flex-end;
+        background-color: var(--bg-tab-bar);
+        height: 42px;
+        padding: 0 8px;
+        gap: 2px;
+        user-select: none;
+        overflow-x: auto;
+      }
+      .title-bar::-webkit-scrollbar {
+        display: none;
+      }
+      .tabs-container {
+        display: flex;
+        align-items: flex-end;
+        height: 100%;
+        gap: 2px;
+      }
+      .chrome-tab {
+        display: flex;
+        align-items: center;
+        height: 34px;
+        min-width: 120px;
+        max-width: 240px;
+        width: 200px;
+        border-radius: 8px 8px 0 0;
+        padding: 0 8px 0 12px;
+        font-size: 12px;
+        color: var(--text-tab);
+        cursor: default;
+        position: relative;
+        transition: background-color 0.1s;
+      }
+      .chrome-tab::after {
+        content: "";
+        position: absolute;
+        right: -2px;
+        top: 20%;
+        height: 60%;
+        width: 1px;
+        background-color: var(--tab-separator);
+      }
+      .chrome-tab.active::after, .chrome-tab:hover::after {
+        display: none;
+      }
+      .chrome-tab:hover {
+        background-color: var(--hover-bg);
+      }
+      .chrome-tab.active {
+        background-color: var(--bg-toolbar);
+        color: var(--text-main);
+        z-index: 2;
+      }
+      .tab-favicon {
+        width: 16px;
+        height: 16px;
+        margin-right: 8px;
+        fill: var(--icon-color);
+        flex-shrink: 0;
+      }
+      .tab-title {
+        flex: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .tab-close {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-left: 4px;
+        opacity: 0;
+        transition: opacity 0.2s, background-color 0.2s;
+        flex-shrink: 0;
+      }
+      .chrome-tab:hover .tab-close, .chrome-tab.active .tab-close {
+        opacity: 1;
+      }
+      .tab-close:hover {
+        background-color: var(--active-hover-bg);
+      }
+      .tab-close svg {
+        width: 12px;
+        height: 12px;
+        fill: currentColor;
+      }
+      .new-tab-btn {
+        background: none;
+        border: none;
+        color: var(--text-main);
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        margin-bottom: 4px;
+        margin-left: 4px;
+        transition: background-color 0.2s;
+        flex-shrink: 0;
+      }
+      .new-tab-btn:hover {
+        background-color: var(--hover-bg);
+      }
+      .new-tab-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      .toolbar {
+        display: flex;
+        align-items: center;
+        background-color: var(--bg-toolbar);
+        padding: 6px 8px;
+        gap: 6px;
+        border-bottom: 1px solid var(--border-color);
+        position: relative;
+        z-index: 10;
+      }
+      .nav-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--icon-color);
+        transition: background 0.2s;
+        flex-shrink: 0;
+      }
+      .nav-btn:hover:not(:disabled) {
+        background-color: var(--hover-bg);
+      }
+      .nav-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .nav-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      .ai-text-icon {
+        font-weight: 700;
+        font-size: 14px;
+        font-family: monospace;
+        letter-spacing: 1px;
+      }
+      .address-bar {
+        display: flex;
+        flex: 1;
+        background-color: var(--bg-input);
+        border-radius: 24px;
+        padding: 0 14px;
+        align-items: center;
+        height: 32px;
+        border: 1px solid transparent;
+        transition: background 0.2s, box-shadow 0.2s, border 0.2s;
+        min-width: 0;
+      }
+      .address-bar:focus-within {
+        background-color: var(--bg-toolbar);
+        border-color: var(--focus-border);
+        box-shadow: var(--focus-shadow);
+      }
+      .security-icon {
+        width: 14px;
+        height: 14px;
+        fill: var(--icon-color);
+        margin-right: 10px;
+        flex-shrink: 0;
+      }
+      .url-input {
+        flex: 1;
+        border: none;
+        outline: none;
+        font-size: 13px;
+        color: var(--text-main);
+        background: transparent;
+        height: 100%;
+        min-width: 0;
+      }
+      .star-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        color: var(--icon-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .star-btn:hover {
+        background-color: var(--hover-bg);
+      }
+      .star-btn svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      .star-btn.bookmarked {
+        color: #fbbc05;
+      }
+      .bookmarks-bar {
+        display: flex;
+        align-items: center;
+        background-color: var(--bg-toolbar);
+        padding: 4px 12px;
+        gap: 6px;
+        border-bottom: 1px solid var(--border-color);
+        height: 32px;
+        overflow-x: auto;
+        user-select: none;
+      }
+      .bookmarks-bar::-webkit-scrollbar {
+        display: none;
+      }
+      .bookmark-item {
+        display: flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        color: var(--text-tab);
+        cursor: pointer;
+        gap: 6px;
+        white-space: nowrap;
+        transition: background-color 0.2s;
+      }
+      .bookmark-item:hover {
+        background-color: var(--hover-bg);
+        color: var(--text-main);
+      }
+      .bookmark-item svg {
+        width: 14px;
+        height: 14px;
+        fill: var(--icon-color);
+      }
+      .settings-container {
+        position: relative;
+      }
+      .settings-menu {
+        position: absolute;
+        top: 40px;
+        right: 0;
+        background-color: var(--bg-toolbar);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        box-shadow: var(--menu-shadow);
+        display: none;
+        flex-direction: column;
+        padding: 8px 0;
+        min-width: 220px;
+        z-index: 100;
+      }
+      .settings-menu.show {
+        display: flex;
+      }
+      .menu-item {
+        padding: 10px 16px;
+        font-size: 13px;
+        cursor: pointer;
+        color: var(--text-main);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .menu-item:hover {
+        background-color: var(--hover-bg);
+      }
+      .menu-item svg {
+        width: 16px;
+        height: 16px;
+        fill: var(--icon-color);
+      }
+      .engine-select {
+        background: transparent;
+        color: var(--text-main);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        padding: 4px;
+        font-size: 13px;
+        outline: none;
+        flex: 1;
+      }
+      .engine-select option {
+        background: var(--bg-toolbar);
+        color: var(--text-main);
+      }
+      .main-content {
+        display: flex;
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+      }
+      .web-views {
+        flex: 1;
+        background-color: #ffffff;
+        position: relative;
+      }
+      .tab-content-wrapper {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+        overflow: hidden;
+      }
+      .tab-content-wrapper.active {
+        display: block;
+      }
+      .web-view {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background-color: #ffffff;
+      }
+      .ntp-view {
+        width: 100%;
+        height: 100%;
+        background-color: var(--bg-toolbar);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      .ntp-logo {
+        font-size: 42px;
+        font-weight: 300;
+        margin-bottom: 24px;
+        color: var(--text-main);
+        letter-spacing: 1px;
+      }
+      .ntp-search-container {
+        width: 100%;
+        max-width: 480px;
+        display: flex;
+        justify-content: center;
+      }
+      .ntp-search-box {
+        width: 100%;
+        height: 44px;
+        background-color: var(--bg-input);
+        border: 1px solid var(--border-color);
+        border-radius: 22px;
+        padding: 0 20px;
+        font-size: 15px;
+        color: var(--text-main);
+        outline: none;
+        text-align: center;
+        transition: background-color 0.2s, border-color 0.2s;
+      }
+      .ntp-search-box:focus {
+        background-color: var(--bg-toolbar);
+        border-color: #1a73e8;
+      }
+      .side-panel {
+        width: 0;
+        height: 100%;
+        border-left: 0 solid var(--border-color);
+        transition: width 0.3s, border-left 0.3s;
+        background-color: var(--bg-toolbar);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        z-index: 5;
+      }
+      .side-panel.open {
+        width: 380px;
+        border-left: 1px solid var(--border-color);
+      }
+      .side-panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text-main);
+      }
+      .side-panel-close {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 50%;
+        color: var(--icon-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .side-panel-close:hover {
+        background-color: var(--hover-bg);
+      }
+      .side-panel-close svg {
+        width: 16px;
+        height: 16px;
+        fill: currentColor;
+      }
+      .side-panel-body {
+        flex: 1;
+        position: relative;
+      }
+      .side-panel-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background-color: #ffffff;
+      }
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: var(--bg-modal);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .modal-overlay.show {
+        display: flex;
+      }
+      .modal-container {
+        background-color: var(--bg-toolbar);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        width: 90%;
+        max-width: 500px;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: var(--menu-shadow);
+        overflow: hidden;
+      }
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .modal-body {
+        padding: 18px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .history-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .history-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        border-radius: 6px;
+        background-color: var(--bg-input);
+        font-size: 13px;
+        gap: 12px;
+      }
+      .history-info {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        flex: 1;
+        min-width: 0;
+      }
+      .history-title {
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+      }
+      .history-url {
+        font-size: 11px;
+        color: var(--icon-color);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+      }
+      .history-time {
+        font-size: 11px;
+        color: var(--icon-color);
+        white-space: nowrap;
+      }
+      .history-delete-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 50%;
+        color: var(--icon-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .history-delete-btn:hover {
+        background-color: var(--hover-bg);
+        color: #ea4335;
+      }
+      .history-delete-btn svg {
+        width: 14px;
+        height: 14px;
+        fill: currentColor;
+      }
+      .modal-footer {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        padding: 12px 18px;
+        border-top: 1px solid var(--border-color);
+        gap: 10px;
+      }
+      .btn {
+        background-color: var(--bg-input);
+        border: 1px solid var(--border-color);
+        color: var(--text-main);
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+      }
+      .btn:hover {
+        background-color: var(--hover-bg);
+      }
+      .btn-primary {
+        background-color: #1a73e8;
+        color: #ffffff;
+        border-color: transparent;
+      }
+      .btn-primary:hover {
+        background-color: #1557b0;
+      }
+      @media (max-width: 600px) {
+        .chrome-tab {
+          min-width: 100px;
+          width: auto;
+          flex: 1;
+        }
+        .toolbar {
+          padding: 6px 4px;
+          gap: 2px;
+        }
+        .nav-btn {
+          width: 30px;
+          height: 30px;
+        }
+        .side-panel.open {
+          width: 100%;
+          position: absolute;
+          top: 0;
+          left: 0;
+          z-index: 1000;
+        }
+      }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  </head>
+  <body class="vh-100">
+    <div class="browser-app vh-100">
+      <div class="title-bar">
+        <div class="tabs-container" id="tabsContainer"></div>
+        <button class="new-tab-btn" id="newTabBtn">
+          <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        </button>
+      </div>
+      <div class="toolbar">
+        <button class="nav-btn" id="backBtn" disabled>
+          <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </button>
+        <button class="nav-btn" id="forwardBtn" disabled>
+          <svg viewBox="0 0 24 24"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z"/></svg>
+        </button>
+        <button class="nav-btn" id="reloadBtn">
+          <svg viewBox="0 0 24 24"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+        </button>
+        <button class="nav-btn" id="homeBtn">
+          <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        </button>
+        <div class="address-bar">
+          <svg class="security-icon" viewBox="0 0 24 24">
+            <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/>
+          </svg>
+          <input type="text" class="url-input" id="urlInput" placeholder="Search or type a URL" autocomplete="off" spellcheck="false">
+          <button class="star-btn" id="starBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+          </button>
+        </div>
+        <button class="nav-btn ai-text-icon" id="aiBtn" title="AI Copilot">AI</button>
+        <div class="settings-container">
+          <button class="nav-btn" id="menuBtn">
+            <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+          </button>
+          <div class="settings-menu" id="settingsMenu">
+            <div class="menu-item" style="cursor: default;">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+              <select id="searchEngineSelect" class="engine-select">
+                <option value="https://www.google.com/search?q=">Google</option>
+                <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
+                <option value="https://www.bing.com/search?q=">Bing</option>
+                <option value="https://search.yahoo.com/search?p=">Yahoo</option>
+                <option value="https://www.ecosia.org/search?q=">Ecosia</option>
+              </select>
+            </div>
+            <div class="menu-item" id="zoomInItem">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm.5-7H9v2H7v1h2v2h1v-2h2V9h-2z"/></svg>
+              Zoom In
+            </div>
+            <div class="menu-item" id="zoomOutItem">
+              <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zM9.5 14C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zm-2.5-4h5v1H7z"/></svg>
+              Zoom Out
+            </div>
+            <div class="menu-item" id="fullscreenItem">
+              <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+              Full Screen Mode
+            </div>
+            <div class="menu-item" id="screenshotItem">
+              <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+              Take Screenshot
+            </div>
+            <div class="menu-item" id="themeToggleItem">
+              <svg viewBox="0 0 24 24"><path d="M20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12 20 8.69zM12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm0-10c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4z"/></svg>
+              Toggle Dark Theme
+            </div>
+            <div class="menu-item" id="newTabMenuItem">
+              <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+              New Tab
+            </div>
+            <div class="menu-item" id="historyMenuItem">
+              <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.53.85-1.07-3.63-2.16V8h-1.5z"/></svg>
+              History
+            </div>
+            <div class="menu-item" id="exportBookmarksItem">
+              <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+              Export Bookmarks
+            </div>
+            <div class="menu-item" id="importBookmarksItem">
+              <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+              Import Bookmarks
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bookmarks-bar" id="bookmarksBar"></div>
+      <div class="main-content">
+        <div class="web-views" id="webViews"></div>
+        <div class="side-panel" id="sidePanel">
+          <div class="side-panel-header">
+            <span>AI Copilot</span>
+            <button class="side-panel-close" id="sidePanelClose">
+              <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+            </button>
+          </div>
+          <div class="side-panel-body">
+            <iframe class="side-panel-iframe" src="https://demo.webfuse.com/+iframetest/?url=https%3A%2F%2Fduckduckgo.com%2F%23chat" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-overlay" id="historyModal">
+      <div class="modal-container">
+        <div class="modal-header">
+          <span>History</span>
+          <button class="side-panel-close" id="closeHistoryModal">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="history-list" id="historyListContainer"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn" id="clearHistoryBtn">Clear all history</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      const proxyBase = 'https://demo.webfuse.com/+iframetest/?url=';
+      let defaultSearch = localStorage.getItem('defaultSearch') || 'https://www.google.com/search?q=';
+      let currentZoom = 1.0;
+      const tabsContainer = document.getElementById('tabsContainer');
+      const webViews = document.getElementById('webViews');
+      const urlInput = document.getElementById('urlInput');
+      const backBtn = document.getElementById('backBtn');
+      const forwardBtn = document.getElementById('forwardBtn');
+      const reloadBtn = document.getElementById('reloadBtn');
+      const homeBtn = document.getElementById('homeBtn');
+      const newTabBtn = document.getElementById('newTabBtn');
+      const menuBtn = document.getElementById('menuBtn');
+      const settingsMenu = document.getElementById('settingsMenu');
+      const searchEngineSelect = document.getElementById('searchEngineSelect');
+      const zoomInItem = document.getElementById('zoomInItem');
+      const zoomOutItem = document.getElementById('zoomOutItem');
+      const fullscreenItem = document.getElementById('fullscreenItem');
+      const screenshotItem = document.getElementById('screenshotItem');
+      const themeToggleItem = document.getElementById('themeToggleItem');
+      const newTabMenuItem = document.getElementById('newTabMenuItem');
+      const historyMenuItem = document.getElementById('historyMenuItem');
+      const exportBookmarksItem = document.getElementById('exportBookmarksItem');
+      const importBookmarksItem = document.getElementById('importBookmarksItem');
+      const bookmarksBar = document.getElementById('bookmarksBar');
+      const starBtn = document.getElementById('starBtn');
+      const aiBtn = document.getElementById('aiBtn');
+      const sidePanel = document.getElementById('sidePanel');
+      const sidePanelClose = document.getElementById('sidePanelClose');
+      const historyModal = document.getElementById('historyModal');
+      const closeHistoryModal = document.getElementById('closeHistoryModal');
+      const historyListContainer = document.getElementById('historyListContainer');
+      const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+      let tabs = [];
+      let activeTabId = null;
+      let tabIdCounter = 0;
+      let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+      let historyLog = JSON.parse(localStorage.getItem('historyLog')) || [];
+      searchEngineSelect.value = defaultSearch;
+      searchEngineSelect.addEventListener('change', (e) => {
+        defaultSearch = e.target.value;
+        localStorage.setItem('defaultSearch', defaultSearch);
+      });
+      function applyZoom() {
+        document.querySelectorAll('.web-view').forEach(iframe => {
+          iframe.style.transform = `scale(${currentZoom})`;
+          iframe.style.transformOrigin = '0 0';
+          iframe.style.width = `${100 / currentZoom}%`;
+          iframe.style.height = `${100 / currentZoom}%`;
+        });
+      }
+      zoomInItem.addEventListener('click', () => {
+        currentZoom += 0.1;
+        applyZoom();
+      });
+      zoomOutItem.addEventListener('click', () => {
+        if (currentZoom > 0.2) currentZoom -= 0.1;
+        applyZoom();
+      });
+      fullscreenItem.addEventListener('click', () => {
+        settingsMenu.classList.remove('show');
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen().catch(err => {
+            console.warn(err);
+          });
+        } else {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          }
+        }
+      });
+      screenshotItem.addEventListener('click', async () => {
+        settingsMenu.classList.remove('show');
+        try {
+          if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ preferCurrentTab: true });
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+              video.play();
+              const canvas = document.createElement('canvas');
+              canvas.width = video.videoWidth;
+              canvas.height = video.videoHeight;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const link = document.createElement('a');
+              link.download = 'browser-screenshot.png';
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+              stream.getTracks().forEach(track => track.stop());
+            };
+          } else {
+            html2canvas(document.body, { useCORS: true, allowTaint: true }).then(canvas => {
+              const link = document.createElement('a');
+              link.download = 'browser-screenshot.png';
+              link.href = canvas.toDataURL('image/png');
+              link.click();
+            });
+          }
+        } catch (err) {
+          alert('Screenshot failed or was canceled.');
+        }
+      });
+      function isUrl(str) {
+        if (str.includes(' ')) return false;
+        try {
+          new URL(str);
+          return true;
+        } catch {
+          return /^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?(\/.*)?$/.test(str) ||
+                 /^localhost(:\d+)?(\/.*)?$/.test(str) ||
+                 /^\d{1,3}(\.\d{1,3}){3}(:\d+)?(\/.*)?$/.test(str);
+        }
+      }
+      function formatUrl(input) {
+        let trimmed = input.trim();
+        if (!trimmed) return 'chrome://newtab';
+        if (trimmed === 'chrome://newtab') return 'chrome://newtab';
+        if (isUrl(trimmed)) {
+          if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+            return 'https://' + trimmed;
+          }
+          return trimmed;
+        }
+        return defaultSearch + encodeURIComponent(trimmed);
+      }
+      function stripProtocol(url) {
+        if (url === 'chrome://newtab') return '';
+        return url.replace(/^https?:\/\//i, '');
+      }
+      function saveBookmarks() {
+        localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+        renderBookmarksBar();
+        updateBookmarkStar();
+      }
+      function renderBookmarksBar() {
+        bookmarksBar.innerHTML = '';
+        bookmarks.forEach(bm => {
+          const item = document.createElement('div');
+          item.className = 'bookmark-item';
+          item.innerHTML = `
+            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            <span>${bm.title}</span>
+          `;
+          item.addEventListener('click', () => {
+            loadUrl(bm.url);
+          });
+          bookmarksBar.appendChild(item);
+        });
+      }
+      function updateBookmarkStar() {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (!tab) return;
+        const currentUrl = tab.history[tab.historyIndex];
+        const exists = bookmarks.some(bm => bm.url === currentUrl);
+        if (exists && currentUrl !== 'chrome://newtab') {
+          starBtn.classList.add('bookmarked');
+        } else {
+          starBtn.classList.remove('bookmarked');
+        }
+      }
+      function addHistoryEntry(url) {
+        if (url === 'chrome://newtab' || !url) return;
+        const entry = {
+          title: stripProtocol(url),
+          url: url,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: new Date().toLocaleDateString()
+        };
+        historyLog.unshift(entry);
+        if (historyLog.length > 500) historyLog.pop();
+        localStorage.setItem('historyLog', JSON.stringify(historyLog));
+      }
+      function renderHistory() {
+        historyListContainer.innerHTML = '';
+        if (historyLog.length === 0) {
+          historyListContainer.innerHTML = '<div style="text-align:center;color:var(--icon-color);padding:20px;">No history records found</div>';
+          return;
+        }
+        historyLog.forEach((item, index) => {
+          const el = document.createElement('div');
+          el.className = 'history-item';
+          el.innerHTML = `
+            <div class="history-info">
+              <div class="history-title">${item.title}</div>
+              <div class="history-url">${item.url}</div>
+            </div>
+            <div class="history-time">${item.time}</div>
+            <button class="history-delete-btn" data-index="${index}">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+          `;
+          el.querySelector('.history-info').addEventListener('click', () => {
+            loadUrl(item.url);
+            historyModal.classList.remove('show');
+          });
+          el.querySelector('.history-delete-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            historyLog.splice(index, 1);
+            localStorage.setItem('historyLog', JSON.stringify(historyLog));
+            renderHistory();
+          });
+          historyListContainer.appendChild(el);
+        });
+      }
+      function updateToolbar() {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (!tab) return;
+        const currentUrl = tab.history[tab.historyIndex];
+        urlInput.value = stripProtocol(currentUrl);
+        backBtn.disabled = tab.historyIndex <= 0;
+        forwardBtn.disabled = tab.historyIndex >= tab.history.length - 1;
+        const tabEl = document.querySelector(`.chrome-tab[data-id="${activeTabId}"] .tab-title`);
+        if (tabEl) {
+          tabEl.textContent = stripProtocol(currentUrl) || 'New Tab';
+        }
+        const wrapper = document.querySelector(`.tab-content-wrapper[data-id="${activeTabId}"]`);
+        if (wrapper) {
+          const ntpView = wrapper.querySelector('.ntp-view');
+          const iframe = wrapper.querySelector('.web-view');
+          if (currentUrl === 'chrome://newtab') {
+            ntpView.style.display = 'flex';
+            iframe.style.display = 'none';
+          } else {
+            ntpView.style.display = 'none';
+            iframe.style.display = 'block';
+          }
+        }
+        updateBookmarkStar();
+      }
+      function setActiveTab(id) {
+        activeTabId = id;
+        document.querySelectorAll('.chrome-tab').forEach(el => {
+          el.classList.toggle('active', parseInt(el.dataset.id) === id);
+        });
+        document.querySelectorAll('.tab-content-wrapper').forEach(el => {
+          el.classList.toggle('active', parseInt(el.dataset.id) === id);
+        });
+        updateToolbar();
+      }
+      function createTab(url = 'chrome://newtab') {
+        const id = ++tabIdCounter;
+        const formattedUrl = formatUrl(url);
+        const tab = {
+          id,
+          history: [formattedUrl],
+          historyIndex: 0
+        };
+        tabs.push(tab);
+        const tabEl = document.createElement('div');
+        tabEl.className = 'chrome-tab';
+        tabEl.dataset.id = id;
+        tabEl.innerHTML = `
+          <svg class="tab-favicon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          <div class="tab-title">${stripProtocol(formattedUrl) || 'New Tab'}</div>
+          <div class="tab-close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></div>
+        `;
+        tabEl.addEventListener('click', (e) => {
+          if (!e.target.closest('.tab-close')) setActiveTab(id);
+        });
+        tabEl.querySelector('.tab-close').addEventListener('click', (e) => {
+          e.stopPropagation();
+          closeTab(id);
+        });
+        tabsContainer.appendChild(tabEl);
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tab-content-wrapper';
+        wrapper.dataset.id = id;
+        wrapper.innerHTML = `
+          <div class="ntp-view">
+            <div class="ntp-logo">New Tab</div>
+            <div class="ntp-search-container">
+              <input type="text" class="ntp-search-box" placeholder="Search the web or type a URL">
+            </div>
+          </div>
+          <iframe class="web-view" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+        `;
+        const ntpInput = wrapper.querySelector('.ntp-search-box');
+        ntpInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') loadUrl(ntpInput.value);
+        });
+        const iframe = wrapper.querySelector('.web-view');
+        iframe.style.transform = `scale(${currentZoom})`;
+        iframe.style.transformOrigin = '0 0';
+        iframe.style.width = `${100 / currentZoom}%`;
+        iframe.style.height = `${100 / currentZoom}%`;
+        if (formattedUrl !== 'chrome://newtab') {
+          iframe.src = proxyBase + encodeURIComponent(formattedUrl);
+        }
+        webViews.appendChild(wrapper);
+        setActiveTab(id);
+      }
+      function closeTab(id) {
+        const tabIndex = tabs.findIndex(t => t.id === id);
+        if (tabIndex === -1) return;
+        tabs.splice(tabIndex, 1);
+        const tabEl = document.querySelector(`.chrome-tab[data-id="${id}"]`);
+        const wrapperEl = document.querySelector(`.tab-content-wrapper[data-id="${id}"]`);
+        if (tabEl) tabEl.remove();
+        if (wrapperEl) wrapperEl.remove();
+        if (tabs.length === 0) {
+          createTab();
+        } else if (activeTabId === id) {
+          const newIndex = Math.max(0, tabIndex - 1);
+          setActiveTab(tabs[newIndex].id);
+        }
+      }
+      function loadUrl(url) {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (!tab) return;
+        const formatted = formatUrl(url);
+        if (tab.historyIndex < tab.history.length - 1) {
+          tab.history = tab.history.slice(0, tab.historyIndex + 1);
+        }
+        if (tab.history[tab.historyIndex] !== formatted) {
+          tab.history.push(formatted);
+          tab.historyIndex++;
+        }
+        const iframe = document.querySelector(`.tab-content-wrapper[data-id="${activeTabId}"] .web-view`);
+        if (iframe && formatted !== 'chrome://newtab') {
+          iframe.src = proxyBase + encodeURIComponent(formatted);
+          addHistoryEntry(formatted);
+        }
+        updateToolbar();
+        urlInput.blur();
+      }
+      urlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') loadUrl(urlInput.value);
+      });
+      backBtn.addEventListener('click', () => {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (tab && tab.historyIndex > 0) {
+          tab.historyIndex--;
+          const formatted = tab.history[tab.historyIndex];
+          const iframe = document.querySelector(`.tab-content-wrapper[data-id="${activeTabId}"] .web-view`);
+          if (iframe && formatted !== 'chrome://newtab') {
+            iframe.src = proxyBase + encodeURIComponent(formatted);
+          }
+          updateToolbar();
+        }
+      });
+      forwardBtn.addEventListener('click', () => {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (tab && tab.historyIndex < tab.history.length - 1) {
+          tab.historyIndex++;
+          const formatted = tab.history[tab.historyIndex];
+          const iframe = document.querySelector(`.tab-content-wrapper[data-id="${activeTabId}"] .web-view`);
+          if (iframe && formatted !== 'chrome://newtab') {
+            iframe.src = proxyBase + encodeURIComponent(formatted);
+          }
+          updateToolbar();
+        }
+      });
+      reloadBtn.addEventListener('click', () => {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (tab) {
+          const formatted = tab.history[tab.historyIndex];
+          const iframe = document.querySelector(`.tab-content-wrapper[data-id="${activeTabId}"] .web-view`);
+          if (iframe && formatted !== 'chrome://newtab') {
+            iframe.src = proxyBase + encodeURIComponent(formatted);
+          }
+        }
+      });
+      homeBtn.addEventListener('click', () => {
+        loadUrl('chrome://newtab');
+      });
+      starBtn.addEventListener('click', () => {
+        const tab = tabs.find(t => t.id === activeTabId);
+        if (!tab) return;
+        const currentUrl = tab.history[tab.historyIndex];
+        if (currentUrl === 'chrome://newtab') return;
+        const existingIndex = bookmarks.findIndex(bm => bm.url === currentUrl);
+        if (existingIndex > -1) {
+          bookmarks.splice(existingIndex, 1);
+        } else {
+          bookmarks.push({
+            title: stripProtocol(currentUrl),
+            url: currentUrl
+          });
+        }
+        saveBookmarks();
+      });
+      aiBtn.addEventListener('click', () => {
+        sidePanel.classList.toggle('open');
+      });
+      sidePanelClose.addEventListener('click', () => {
+        sidePanel.classList.remove('open');
+      });
+      newTabBtn.addEventListener('click', () => createTab());
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        settingsMenu.classList.toggle('show');
+      });
+      document.addEventListener('click', (e) => {
+        if (!settingsMenu.contains(e.target) && e.target !== menuBtn) {
+          settingsMenu.classList.remove('show');
+        }
+      });
+      themeToggleItem.addEventListener('click', () => {
+        document.body.classList.toggle('dark-mode');
+        settingsMenu.classList.remove('show');
+      });
+      newTabMenuItem.addEventListener('click', () => {
+        createTab();
+        settingsMenu.classList.remove('show');
+      });
+      historyMenuItem.addEventListener('click', () => {
+        renderHistory();
+        historyModal.classList.add('show');
+        settingsMenu.classList.remove('show');
+      });
+      closeHistoryModal.addEventListener('click', () => {
+        historyModal.classList.remove('show');
+      });
+      clearHistoryBtn.addEventListener('click', () => {
+        historyLog = [];
+        localStorage.setItem('historyLog', JSON.stringify(historyLog));
+        renderHistory();
+      });
+      exportBookmarksItem.addEventListener('click', () => {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bookmarks));
+        const dlAnchorElem = document.createElement('a');
+        dlAnchorElem.setAttribute("href", dataStr);
+        dlAnchorElem.setAttribute("download", "bookmarks.json");
+        dlAnchorElem.click();
+        settingsMenu.classList.remove('show');
+      });
+      importBookmarksItem.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = e => {
+          const file = e.target.files[0];
+          const reader = new FileReader();
+          reader.readAsText(file, 'UTF-8');
+          reader.onload = readerEvent => {
+            try {
+              const parsed = JSON.parse(readerEvent.target.result);
+              if (Array.isArray(parsed)) {
+                bookmarks = parsed;
+                saveBookmarks();
+              }
+            } catch (err) {
+              alert('Error importing bookmarks file');
+            }
+          }
+        };
+        input.click();
+        settingsMenu.classList.remove('show');
+      });
+      window.addEventListener('load', () => {
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.body.classList.add('dark-mode');
+        }
+        renderBookmarksBar();
+        createTab();
+      });
+    </script>
+  </body>
+</html>
